@@ -1,0 +1,413 @@
+<!DOCTYPE html>
+<html lang="so">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Laam Wallet - P2P (Real)</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+<style>
+/* (Copy the CSS you already provided above) */
+/* For brevity, reuse your previous CSS here. Add small chat modal styling. */
+:root{
+  --primary:#4a00e0;--primary-light:#8e2de2;--secondary:#00c6ff;--dark:#1a1a2e;--darker:#16213e;--light:#f5f5f5;--card-bg:rgba(255,255,255,0.06);--card-border:rgba(255,255,255,0.15);
+}
+*{box-sizing:border-box}
+body{font-family:Segoe UI, Tahoma, Geneva, Verdana, sans-serif;background:linear-gradient(135deg,var(--dark),var(--darker));color:var(--light);padding:20px;min-height:100vh}
+.container{max-width:1100px;margin:0 auto}
+.header{display:flex;justify-content:space-between;align-items:center;margin-bottom:18px}
+.header h1{background:linear-gradient(to right,var(--primary-light),var(--secondary));-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+.p2p-container{background:rgba(255,255,255,0.03);padding:22px;border-radius:16px;border:1px solid var(--card-border)}
+.trader-list{display:flex;flex-direction:column;gap:12px;margin-top:12px}
+.trader-card{background:var(--card-bg);padding:16px;border-radius:12px;border:1px solid var(--card-border);cursor:pointer;display:flex;flex-direction:column}
+.trader-header{display:flex;justify-content:space-between;align-items:center}
+.trader-name{display:flex;gap:8px;align-items:center}
+.verified-badge{background:#00b894;padding:4px 8px;border-radius:8px;font-size:12px;color:#fff}
+.action-buttons{display:flex;gap:8px;margin-top:10px}
+.btn{padding:8px 12px;border-radius:8px;border:none;cursor:pointer;font-weight:600}
+.btn-primary{background:linear-gradient(90deg,var(--primary),var(--primary-light));color:white}
+.btn-secondary{background:rgba(255,255,255,0.06);color:var(--light);border:1px solid var(--card-border)}
+/* Modal styles */
+.modal{position:fixed;left:0;top:0;width:100%;height:100%;display:none;align-items:center;justify-content:center;background:rgba(0,0,0,0.5);z-index:50}
+.modal .card{background:#0f1724;padding:18px;border-radius:12px;width:100%;max-width:520px;border:1px solid rgba(255,255,255,0.06)}
+.input,select{width:100%;padding:10px;border-radius:8px;border:1px solid rgba(255,255,255,0.08);background:transparent;color:var(--light);margin-top:8px}
+.chat-window{position:fixed;right:20px;bottom:20px;width:320px;height:420px;background:rgba(0,0,0,0.45);border-radius:12px;border:1px solid rgba(255,255,255,0.06);display:flex;flex-direction:column;overflow:hidden}
+.chat-header{padding:8px 12px;background:linear-gradient(90deg,var(--primary),var(--primary-light));color:white;display:flex;justify-content:space-between;align-items:center}
+.chat-body{flex:1;padding:10px;overflow:auto}
+.chat-input{display:flex;padding:8px;border-top:1px solid rgba(255,255,255,0.03)}
+.chat-input input{flex:1;padding:8px;border-radius:8px;border:1px solid rgba(255,255,255,0.06);background:transparent;color:var(--light);margin-right:6px}
+.small{font-size:12px;color:#cbd5e1}
+</style>
+</head>
+<body>
+<div class="container">
+  <div class="header">
+    <h1><i class="fas fa-wallet"></i> Laam Wallet - P2P Live</h1>
+    <div>
+      <span id="userLabel" class="small">Not signed in</span>
+      <button id="authBtn" class="btn btn-secondary">Sign In</button>
+    </div>
+  </div>
+
+  <div class="p2p-container">
+    <div style="display:flex;justify-content:space-between;align-items:center">
+      <h2>Express P2P Trading (Live)</h2>
+      <div>
+        <select id="assetFilter" class="input" style="width:200px">
+          <option value="USDT">USDT</option><option value="XLM">XLM</option><option value="Laam">Laam</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="trader-list" id="traderList">
+      <!-- dynamic -->
+    </div>
+  </div>
+</div>
+
+<!-- Buy / Sell Modal -->
+<div id="tradeModal" class="modal">
+  <div class="card">
+    <h3 id="tradeModalTitle">Initiate Trade</h3>
+    <div><small id="selectedTraderLabel" class="small"></small></div>
+
+    <label>Type</label>
+    <select id="tradeType" class="input">
+      <option value="buy">Buy</option>
+      <option value="sell">Sell</option>
+    </select>
+
+    <label>Amount (USDT)</label>
+    <input id="tradeAmount" class="input" type="number" min="1" step="0.01" placeholder="e.g. 100">
+
+    <label>Payment method</label>
+    <select id="paymentMethod" class="input">
+      <option value="CBE">CBE</option><option value="TeleBirr">Tele Birr</option><option value="Cash">Cash</option>
+    </select>
+
+    <div style="display:flex;gap:8px;margin-top:12px">
+      <button id="confirmTrade" class="btn btn-primary">Confirm</button>
+      <button id="cancelTrade" class="btn btn-secondary">Cancel</button>
+    </div>
+
+    <div id="tradeStatus" style="margin-top:10px" class="small"></div>
+  </div>
+</div>
+
+<!-- Chat window (global) -->
+<div id="chatWindow" class="chat-window" style="display:none">
+  <div class="chat-header">
+    <div id="chatWith">Chat</div>
+    <button id="closeChat" class="btn btn-secondary" style="padding:6px 8px">Close</button>
+  </div>
+  <div id="chatBody" class="chat-body"></div>
+  <div class="chat-input">
+    <input id="chatInput" placeholder="Type a message..." />
+    <button id="sendChat" class="btn btn-primary">Send</button>
+  </div>
+</div>
+
+<!-- Firebase SDKs -->
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-functions-compat.js"></script>
+
+<script>
+/*
+  IMPORTANT:
+  - Replace firebaseConfig with your project's config from Firebase Console
+  - Enable Firestore, Authentication (Email/Phone), and Functions in the project
+*/
+
+const firebaseConfig = {
+  apiKey: "YOUR_API_KEY",
+  authDomain: "YOUR_PROJECT.firebaseapp.com",
+  projectId: "YOUR_PROJECT",
+  storageBucket: "YOUR_PROJECT.appspot.com",
+  messagingSenderId: "SENDER_ID",
+  appId: "APP_ID"
+};
+
+firebase.initializeApp(firebaseConfig);
+const auth = firebase.auth();
+const db = firebase.firestore();
+const functions = firebase.functions();
+
+/* ---------- Auth UI & helpers ---------- */
+const authBtn = document.getElementById('authBtn');
+const userLabel = document.getElementById('userLabel');
+
+authBtn.addEventListener('click', async ()=>{
+  if(auth.currentUser){
+    await auth.signOut();
+  } else {
+    // Simple email/password popup (for demo). Replace with proper UI / phone auth.
+    const email = prompt('Email for demo login (will create if new):');
+    if(!email) return;
+    const pass = prompt('Password:');
+    try {
+      const userCred = await auth.signInWithEmailAndPassword(email,pass);
+      console.log('signed in', userCred.user.uid);
+    } catch(e){
+      // if not found, create account
+      try {
+        const userCred = await auth.createUserWithEmailAndPassword(email,pass);
+        console.log('account created', userCred.user.uid);
+      } catch(err){
+        alert('Auth error: '+err.message);
+      }
+    }
+  }
+});
+
+auth.onAuthStateChanged(user=>{
+  if(user){
+    userLabel.textContent = user.email || user.uid;
+    authBtn.textContent = 'Sign Out';
+    // show chat
+  } else {
+    userLabel.textContent = 'Not signed in';
+    authBtn.textContent = 'Sign In';
+    // hide chat if desired
+  }
+});
+
+/* ---------- Sample trader data stream (live) ---------- */
+/* In production you will have merchant accounts collection. We'll use "traders" collection. */
+const traderListEl = document.getElementById('traderList');
+const assetFilter = document.getElementById('assetFilter');
+
+function renderTrader(doc){
+  const d = doc.data();
+  const card = document.createElement('div');
+  card.className = 'trader-card';
+  card.dataset.id = doc.id;
+
+  card.innerHTML = `
+    <div class="trader-header">
+      <div class="trader-name">
+        <strong>${d.name}</strong>
+        <div class="verified-badge">${d.verified? 'Verified':'Unverified'}</div>
+      </div>
+      <div class="small">${d.trades || 0} Trades</div>
+    </div>
+
+    <div style="display:flex;gap:12px;margin-top:8px">
+      <div><div class="small">Price</div><div class="small" style="font-weight:700">${d.price || '—'} ETB/USDT</div></div>
+      <div><div class="small">Limit</div><div class="small" style="font-weight:700">${d.limit || '—'}</div></div>
+      <div><div class="small">Available</div><div class="small" style="font-weight:700">${d.available || 0}</div></div>
+    </div>
+
+    <div class="payment-methods" style="margin-top:8px">
+      ${(d.payments || []).map(p=>`<div class="payment-method"><i class="fas fa-university"></i> ${p}</div>`).join('')}
+    </div>
+
+    <div class="action-buttons">
+      <button class="btn btn-primary buyBtn">Buy</button>
+      <button class="btn btn-secondary chatBtn">Chat</button>
+    </div>
+  `;
+
+  // Buy click
+  card.querySelector('.buyBtn').addEventListener('click', (e)=>{
+    e.stopPropagation();
+    openTradeModal(doc.id, d, 'buy');
+  });
+
+  // Chat click
+  card.querySelector('.chatBtn').addEventListener('click', (e)=>{
+    e.stopPropagation();
+    openChat(doc.id, d.name);
+  });
+
+  return card;
+}
+
+/* Real-time listener for traders collection filtered by asset */
+let unsubscribeTraders = null;
+function attachTradersListener(){
+  if(unsubscribeTraders) unsubscribeTraders();
+  const asset = assetFilter.value || 'USDT';
+  unsubscribeTraders = db.collection('traders').where('asset','==',asset)
+    .onSnapshot(snap=>{
+      traderListEl.innerHTML = '';
+      snap.forEach(doc=>{
+        traderListEl.appendChild(renderTrader(doc));
+      });
+    });
+}
+assetFilter.addEventListener('change', attachTradersListener);
+attachTradersListener();
+
+/* ---------- Trade modal logic (create "offers" in Firestore) ---------- */
+const tradeModal = document.getElementById('tradeModal');
+const selectedTraderLabel = document.getElementById('selectedTraderLabel');
+const tradeTypeEl = document.getElementById('tradeType');
+const tradeAmount = document.getElementById('tradeAmount');
+const paymentMethod = document.getElementById('paymentMethod');
+const confirmTrade = document.getElementById('confirmTrade');
+const cancelTrade = document.getElementById('cancelTrade');
+const tradeStatus = document.getElementById('tradeStatus');
+
+let currentSelectedTraderId = null;
+let currentSelectedTrader = null;
+
+function openTradeModal(traderId, traderData, type){
+  if(!auth.currentUser){
+    alert('Please sign in first.');
+    return;
+  }
+  currentSelectedTraderId = traderId;
+  currentSelectedTrader = traderData;
+  tradeTypeEl.value = type;
+  selectedTraderLabel.textContent = `Trader: ${traderData.name} — Price: ${traderData.price} ETB/USDT`;
+  tradeAmount.value = '';
+  tradeStatus.textContent = '';
+  tradeModal.style.display = 'flex';
+}
+
+cancelTrade.addEventListener('click', ()=>tradeModal.style.display='none');
+
+/* Confirm: write an "offers" document, then call Cloud Function to attempt "accept" flow (or merchant accepts) */
+confirmTrade.addEventListener('click', async ()=>{
+  const amount = parseFloat(tradeAmount.value);
+  if(!amount || amount <= 0) { tradeStatus.textContent = 'Enter valid amount'; return; }
+  tradeStatus.textContent = 'Creating trade...';
+
+  try {
+    // Save offer
+    const offerRef = await db.collection('offers').add({
+      traderId: currentSelectedTraderId,
+      traderName: currentSelectedTrader.name,
+      userId: auth.currentUser.uid,
+      userEmail: auth.currentUser.email || null,
+      amountUSDT: amount,
+      asset: currentSelectedTrader.asset || 'USDT',
+      paymentMethod: paymentMethod.value,
+      priceETBPerUSDT: currentSelectedTrader.price,
+      status: 'pending', // pending -> accepted -> in_escrow -> completed/cancelled
+      createdAt: firebase.firestore.FieldValue.serverTimestamp()
+    });
+    tradeStatus.textContent = 'Offer created. Waiting for trader to accept...';
+    // Optional: call function to notify merchant (push notif). For demo we'll poll offer status.
+    // Start listener on offer
+    const unsubscribe = offerRef.onSnapshot(snap=>{
+      const data = snap.data();
+      tradeStatus.textContent = `Status: ${data.status}`;
+      if(data.status === 'accepted'){
+        tradeStatus.textContent = 'Trader accepted — move to escrow';
+      }
+      if(data.status === 'in_escrow'){
+        tradeStatus.textContent = 'Escrow created — follow instructions to pay the trader via selected method.';
+      }
+      if(data.status === 'completed' || data.status === 'cancelled'){
+        unsubscribe();
+        setTimeout(()=>tradeModal.style.display='none', 1200);
+      }
+    });
+
+  } catch(err){
+    tradeStatus.textContent = 'Error: '+err.message;
+  }
+});
+
+/* ---------- Chat system (Firestore-based, live) ---------- */
+const chatWindow = document.getElementById('chatWindow');
+const chatBody = document.getElementById('chatBody');
+const chatWithLabel = document.getElementById('chatWith');
+const chatInput = document.getElementById('chatInput');
+const sendChat = document.getElementById('sendChat');
+const closeChat = document.getElementById('closeChat');
+
+let currentChatUnsub = null;
+let currentChatId = null;
+
+function openChat(traderId, traderName){
+  if(!auth.currentUser){
+    alert('Please sign in to chat');
+    return;
+  }
+  // We'll use chats collection: chats/{chatId} containing participants and subcollection messages
+  // Create deterministic chatId (userId_traderId sorted) to avoid duplicates
+  const uid = auth.currentUser.uid;
+  const [a,b] = [uid, traderId].sort();
+  const chatId = `${a}_${b}`;
+  currentChatId = chatId;
+  chatWithLabel.textContent = `Chat with ${traderName}`;
+  chatWindow.style.display = 'flex';
+  chatBody.innerHTML = '<div class="small">Loading messages...</div>';
+
+  // create chat doc if not exists
+  const chatRef = db.collection('chats').doc(chatId);
+  chatRef.set({
+    participants: [uid, traderId],
+    traderId,
+    userId: uid,
+    updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+  }, {merge:true});
+
+  // listen messages
+  if(currentChatUnsub) currentChatUnsub();
+  currentChatUnsub = chatRef.collection('messages').orderBy('createdAt').onSnapshot(snap=>{
+    chatBody.innerHTML = '';
+    snap.forEach(doc=>{
+      const m = doc.data();
+      const el = document.createElement('div');
+      el.style.marginBottom='8px';
+      el.innerHTML = `<div style="font-size:12px;color:#9CA3AF">${m.fromName || m.from}</div>
+                      <div style="background:rgba(255,255,255,0.04);padding:8px;border-radius:8px">${m.text}</div>`;
+      chatBody.appendChild(el);
+    });
+    chatBody.scrollTop = chatBody.scrollHeight;
+  });
+}
+
+sendChat.addEventListener('click', async ()=>{
+  const text = chatInput.value.trim();
+  if(!text) return;
+  const uid = auth.currentUser.uid;
+  const name = auth.currentUser.email || uid;
+  const chatRef = db.collection('chats').doc(currentChatId);
+  await chatRef.collection('messages').add({
+    from: uid,
+    fromName: name,
+    text,
+    createdAt: firebase.firestore.FieldValue.serverTimestamp()
+  });
+  await chatRef.update({updatedAt: firebase.firestore.FieldValue.serverTimestamp()});
+  chatInput.value = '';
+});
+
+closeChat.addEventListener('click', ()=>{
+  chatWindow.style.display = 'none';
+  if(currentChatUnsub) currentChatUnsub();
+  currentChatUnsub = null;
+});
+
+/* ---------- Optional: function to accept offer (merchant side) ---------- */
+/* In real system merchants have a dashboard to list offers and accept -> triggers Cloud Function to create escrow.
+   For demo, merchant can manually change offer.status in console to "accepted" and cloud function will run to create escrow.
+*/
+
+/* ---------- Helpful: seed sample traders (run once) ---------- */
+async function seedTradersOnce(){
+  const snap = await db.collection('traders').limit(1).get();
+  if(!snap.empty) return;
+  const sample = [
+    { name:'S. Safe_Exchange_19', verified:true, trades:1592, price:162.23, limit:'1000-80000', available:7249.9, payments:['CBE','Tele Birr'], asset:'USDT' },
+    { name:'H. Habeshawiw', verified:true, trades:346, price:162.23, limit:'20000-200000', available:49152.05, payments:['Awash Bank','Abyssinia Bank'], asset:'USDT' },
+    { name:'PRO-MARCHANT', verified:true, trades:739, price:162.23, limit:'2000-75000', available:34353.82, payments:['CBE','Tele Birr'], asset:'USDT' },
+    { name:'Fast_Trade_ET', verified:true, trades:421, price:162.50, limit:'5000-50000', available:12584.3, payments:['CBE','Awash','Abyssinia','Tele Birr'], asset:'USDT' }
+  ];
+  const batch = db.batch();
+  sample.forEach(s=>{
+    const ref = db.collection('traders').doc();
+    batch.set(ref, s);
+  });
+  await batch.commit();
+}
+seedTradersOnce();
+
+</script>
+</body>
+  </html>
